@@ -1,0 +1,9 @@
+/target/
+/downloads/
+/.agents/
+/.codex/
+
+*.mp4
+*.mp3
+*.part
+.DS_Store

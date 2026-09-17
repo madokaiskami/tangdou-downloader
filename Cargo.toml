@@ -1,0 +1,25 @@
+[package]
+name = "tangdou-downloader"
+version = "0.1.0"
+edition = "2024"
+description = "A lightweight Tangdou video downloader and media converter"
+license = "MIT"
+default-run = "tangdou-downloader"
+autobins = false
+
+[[bin]]
+name = "tangdou-downloader"
+path = "src/main.rs"
+
+[[bin]]
+name = "tangdou-cli"
+path = "src/bin/tangdou-cli.rs"
+
+[dependencies]
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "brotli", "deflate", "gzip", "json", "rustls-tls"] }
+rfd = "0.17.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+url = "2"

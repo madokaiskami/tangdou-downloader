@@ -1,0 +1,7 @@
+{
+  "code": 0,
+  "data": {
+    "name": "Fallback",
+    "play_url": "https://media.example/fallback.mp4"
+  }
+}
