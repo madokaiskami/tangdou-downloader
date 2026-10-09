@@ -8,7 +8,7 @@ use tangdou_downloader::model::{OutputFormat, TrimRange, format_time, parse_time
 use tangdou_downloader::workflow::{JobRequest, WorkerEvent, run_job};
 use tangdou_downloader::{AppError, Result};
 
-const USAGE: &str = "Tangdou Downloader (Phase 1 CLI)
+const USAGE: &str = "Tangdou Downloader CLI
 
 Usage:
   tangdou-cli <SHARE_URL> [OPTIONS]

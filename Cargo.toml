@@ -1,6 +1,6 @@
 [package]
 name = "tangdou-downloader"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "A lightweight Tangdou video downloader and media converter"
 license = "MIT"
@@ -23,3 +23,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
 url = "2"
+
+[profile.release]
+strip = true

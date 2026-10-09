@@ -15,7 +15,7 @@ pub fn check_dependencies(needs_ffmpeg: bool) -> Result<()> {
 }
 
 fn check_tool(tool: &'static str) -> Result<()> {
-    match Command::new(tool).arg("-version").output() {
+    match media_command(tool).arg("-version").output() {
         Ok(output) if output.status.success() => Ok(()),
         Ok(output) => Err(tool_failure(tool, output)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Err(AppError::MissingTool(tool)),
@@ -24,7 +24,7 @@ fn check_tool(tool: &'static str) -> Result<()> {
 }
 
 pub fn probe_duration(input: &Path) -> Result<Duration> {
-    let output = Command::new("ffprobe")
+    let output = media_command("ffprobe")
         .args([
             "-v",
             "error",
@@ -51,7 +51,7 @@ pub fn probe_duration(input: &Path) -> Result<Duration> {
 }
 
 pub fn trim_mp4(input: &Path, output: &Path, trim: TrimRange) -> Result<()> {
-    let mut command = Command::new("ffmpeg");
+    let mut command = media_command("ffmpeg");
     command.args(["-hide_banner", "-n"]);
     add_trim_arguments(&mut command, trim);
     command
@@ -63,7 +63,7 @@ pub fn trim_mp4(input: &Path, output: &Path, trim: TrimRange) -> Result<()> {
 }
 
 pub fn convert_to_mp3(input: &Path, output: &Path, trim: TrimRange) -> Result<()> {
-    let mut command = Command::new("ffmpeg");
+    let mut command = media_command("ffmpeg");
     command.args(["-hide_banner", "-n"]);
     add_trim_arguments(&mut command, trim);
     command
@@ -72,6 +72,18 @@ pub fn convert_to_mp3(input: &Path, output: &Path, trim: TrimRange) -> Result<()
         .args(["-vn", "-c:a", "libmp3lame", "-q:a", "2"])
         .arg(output);
     run_ffmpeg(command)
+}
+
+fn media_command(tool: &str) -> Command {
+    let command = Command::new(tool);
+    #[cfg(windows)]
+    let command = {
+        use std::os::windows::process::CommandExt;
+        let mut command = command;
+        command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        command
+    };
+    command
 }
 
 fn add_trim_arguments(command: &mut Command, trim: TrimRange) {

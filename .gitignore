@@ -1,5 +1,6 @@
 /target/
 /downloads/
+/dist/
 /.agents/
 /.codex/
 

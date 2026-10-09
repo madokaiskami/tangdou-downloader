@@ -1,633 +1,150 @@
-# Tangdou Downloader
+# 糖豆视频下载器 · Tangdou Downloader
 
-A lightweight Rust desktop application for downloading and processing Tangdou videos.
+轻量 Rust 原生桌面工具：粘贴糖豆分享链接，下载接口提供的原始 MP4，
+按需裁剪或导出 MP3。支持简体中文 / English，面向 Linux 与 Windows x86_64。
 
-The intended first platform is Ubuntu/Linux.
+## 下载与安装
 
-The application is designed to:
+从 [GitHub Releases](https://github.com/madokaiskami/tangdou-downloader/releases)
+下载对应平台的压缩包。包内包含 GUI、CLI、README 和 MIT 许可证，不包含 FFmpeg。
+SHA256SUMS 校验文件随版本提供。
 
-- accept a Tangdou share link;
-- extract the video ID;
-- resolve the current signed media URL;
-- download the original MP4;
-- optionally trim by start/end time;
-- optionally convert the output to MP3;
-- provide the workflow through a simple native GUI.
+| 平台 | 发布包 | 启动 |
+| --- | --- | --- |
+| Linux x86_64 | `tangdou-downloader-linux-x86_64.tar.gz` | 解压后运行 `./tangdou-downloader` |
+| Windows x86_64 | `tangdou-downloader-windows-x86_64.zip` | 解压后双击 `tangdou-downloader.exe` |
 
-> Use the application only for media that you are authorized to download and process.
+Linux 发布包在 Ubuntu 22.04 构建，适用于具有图形桌面、glibc 2.35 或更新版本的
+Linux x86_64 系统；其他发行版仍可能需要安装 OpenGL、X11 / Wayland 运行库。
+Windows 发布包使用原生 MSVC 工具链构建；目前尚未进行 Windows 桌面的人工端到端验证。
+发布包是便携压缩包，不是安装程序、AppImage 或 .deb。
 
----
+### Linux 依赖
 
-## Phase 3 background worker and progress
-
-The GUI sends all blocking metadata, download, `ffprobe`, and `ffmpeg` work to a `std::thread`
-worker. Structured channel events report resolving, download start, byte progress, probing,
-processing, completion, and failure. The window displays both a progress bar and human-readable
-status such as downloaded MiB, total size, and percentage when the server supplies a content
-length.
-
-No Tokio runtime is used.
-
----
-
-## Phase 2 desktop GUI
-
-The native `eframe`/`egui` desktop interface is implemented. Launch it with:
+Ubuntu / Debian：
 
 ```bash
-cargo run
+sudo apt install ffmpeg fonts-noto-cjk libgl1 libxkbcommon0
+tar -xzf tangdou-downloader-linux-x86_64.tar.gz
+cd tangdou-downloader-linux-x86_64
+./tangdou-downloader
 ```
 
-The GUI can parse a Tangdou URL, display its VID and title, select optional trim boundaries and
-MP4/MP3 output, preserve the original MP4, choose an output directory, and run the complete media
-workflow. Network requests, downloads, `ffprobe`, and `ffmpeg` run on a worker thread so the window
-remains responsive. Phase 3 adds structured worker events and download progress reporting.
+其他发行版请通过对应包管理器安装 FFmpeg、中文字体和图形运行库。
 
-For a release build:
+### Windows 依赖
+
+从 [FFmpeg 官方下载页](https://ffmpeg.org/download.html) 选择 Windows 构建，
+解压后将包含 `ffmpeg.exe` 和 `ffprobe.exe` 的 `bin` 目录加入用户 `PATH`，
+再重新启动下载器。PowerShell 中可验证：
+
+```powershell
+ffmpeg -version
+ffprobe -version
+.\tangdou-downloader.exe
+```
+
+GUI 使用系统微软雅黑或黑体显示中文。Windows GUI 不开启控制台窗口，
+调用 FFmpeg / ffprobe 时也不会弹出命令窗口。
+若 Windows 提示缺少 MSVC 运行库，请安装微软官方
+[Visual C++ x64 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)。
+
+## 使用方法
+
+1. 粘贴糖豆分享链接，点击“解析”查看标题和 VID，或直接点击“下载 / 转换”。
+2. 按需启用裁剪；开始和结束各有“小时 / 分钟 / 秒”三格。
+3. 选择 MP4 或 MP3，指定保存目录，按需勾选保留原始 MP4。
+4. 点击“下载 / 转换”，通过任务卡片查看解析、下载、处理和完成状态。
+
+默认界面为简体中文，可在顶部语言下拉框切换 English。
+语言选择仅在当前会话有效。外部工具和网络的技术诊断可能仍为英文。
+
+时间规则：小时是非负整数，分钟与秒为 0–59。整行开始留空表示从文件开头开始；
+整行结束留空表示到文件末尾。只填部分格时，其余空格视为零。
+结束须晚于开始且不能超过检测到的媒体时长；无效输入会明确报错。
+
+界面采用浅色卡片、青绿色操作按钮与进度条；窗口较小时可以滚动。
+下载显示字节数及服务器提供的总大小；未知大小和媒体处理使用不定进度动画，
+不显示虚构的处理百分比。网络与媒体任务运行在后台线程，界面保持响应。
+
+每次下载重新解析临时签名 URL，不保存账号、Cookie 或下载历史。
+同名输出自动添加数字后缀，成功后清理临时文件。
+MP4 裁剪采用 FFmpeg 流复制，可能对齐关键帧，不能保证逐帧精确。
+MP3 直接通过 FFmpeg 导出，不产生中间 WAV。
+即使只下载 MP4 也需要 ffprobe；裁剪及 MP3 导出还需要 ffmpeg。
+
+## 命令行
 
 ```bash
-cargo build --release
+./tangdou-cli 'https://www.tangdouddn.com/h5/play?vid=20000014175956' -o ./downloads
+./tangdou-cli 'https://www.tangdouddn.com/h5/play?vid=20000014175956' \
+  --format mp3 --start 00:00:10 --end 00:01:00 --keep-original -o ./downloads
+./tangdou-cli --help
+```
+
+Windows 使用 `tangdou-cli.exe`。CLI 时间参数支持 HH:MM:SS 或 MM:SS。
+示例 VID 只演示输入格式，服务端视频的可用性可能变化。
+
+## 从源码构建
+
+需要 Rust stable（Edition 2024）和桌面环境。Ubuntu 构建依赖：
+
+```bash
+sudo apt install build-essential pkg-config libx11-dev libxi-dev libxrandr-dev \
+  libxcursor-dev libxinerama-dev libgl1-mesa-dev libwayland-dev libxkbcommon-dev
+cargo build --locked --release --bins
 ./target/release/tangdou-downloader
 ```
 
----
+Windows 安装 Rust stable MSVC 工具链和 Visual Studio Build Tools 的
+“使用 C++ 的桌面开发”组件，然后执行：
 
-## Phase 1 CLI
+```powershell
+cargo build --locked --release --bins
+.	arget\release\tangdou-downloader.exe
+```
 
-The command-line proof of concept is implemented. It resolves a fresh signed URL for each run,
-downloads the complete MP4 with Tangdou request headers, probes its duration, and can either trim
-the MP4 with stream copy or export MP3 audio.
-
-Build and show the available options:
+检查命令：
 
 ```bash
-cargo build --release
-./target/release/tangdou-cli --help
+cargo fmt --check
+cargo clippy --locked --all-targets --all-features -- -D warnings
+cargo test --locked
 ```
 
-Download the original MP4 into the current directory:
-
-```bash
-cargo run --bin tangdou-cli -- 'https://www.tangdouddn.com/h5/play?vid=20000014175956'
-```
-
-Trim to MP4 (the output directory is created if needed):
-
-```bash
-cargo run --bin tangdou-cli -- \
-  'https://www.tangdouddn.com/h5/play?vid=20000014175956' \
-  --start 00:01:20 \
-  --end 00:04:30 \
-  --output ./downloads
-```
-
-Export a trimmed MP3 and preserve the originally downloaded MP4:
-
-```bash
-cargo run --bin tangdou-cli -- \
-  'https://www.tangdouddn.com/h5/play?vid=20000014175956' \
-  --format mp3 \
-  --start 01:20 \
-  --end 04:30 \
-  --keep-original \
-  --output ./downloads
-```
-
-`ffprobe` is required for every download. `ffmpeg` is additionally required for trimming and MP3
-conversion. On Ubuntu, install both with `sudo apt install ffmpeg`.
-
-Existing output files are not overwritten; numeric suffixes are selected automatically. MP4 trim
-uses stream copy for low CPU use, so cut points can align to keyframes and are not frame-exact.
-
----
-
-## Desktop interface
-
-```text
-┌──────────────────────────────────────────────────┐
-│ Tangdou Downloader                               │
-├──────────────────────────────────────────────────┤
-│ Share URL                                        │
-│ [ https://www.tangdouddn.com/h5/play?...      ] │
-│                                                  │
-│ [Parse]                                          │
-│                                                  │
-│ Title: ...                                       │
-│ VID:   20000014175956                            │
-│                                                  │
-│ Trim                                             │
-│ [ ] Enable trim                                  │
-│                                                  │
-│ Start [00:00:00]     End [00:03:30]              │
-│                                                  │
-│ Output                                           │
-│ (o) MP4              ( ) MP3                     │
-│                                                  │
-│ [ ] Keep original video                          │
-│                                                  │
-│ Save directory                                   │
-│ [/home/user/Videos/...................] [Browse] │
-│                                                  │
-│ [           Download / Convert           ]       │
-│                                                  │
-│ [=====================       ] 72%                │
-│ Downloading...                                   │
-└──────────────────────────────────────────────────┘
-```
-
----
-
-## Why Rust
-
-Rust is a good fit for this utility because it provides:
-
-- low runtime overhead;
-- native binaries;
-- predictable memory usage;
-- straightforward process control;
-- good cross-platform potential;
-- strong error handling.
-
-The application does not implement media codecs itself.
-
-Media processing is delegated to FFmpeg.
-
----
-
-## Architecture
-
-The application consists of four main pieces:
-
-```text
-               ┌───────────────┐
-               │     egui      │
-               │      GUI      │
-               └───────┬───────┘
-                       │
-                       v
-               ┌───────────────┐
-               │ Worker thread │
-               └───────┬───────┘
-                       │
-          ┌────────────┼────────────┐
-          v            v            v
-     Tangdou API   HTTP download   FFmpeg
-```
-
-The GUI thread must never perform blocking downloads or media processing.
-
----
-
-## Technology stack
-
-Planned Rust dependencies:
-
-- `eframe` / `egui`
-- `reqwest`
-- `serde`
-- `serde_json`
-- `url`
-
-System dependencies:
-
-- `ffmpeg`
-- `ffprobe`
-
-The initial implementation should avoid a full async runtime unless it becomes necessary.
-
----
-
-## Tangdou resolution
-
-Tangdou share links contain a video ID, for example:
-
-```text
-https://www.tangdouddn.com/h5/play?ad_switch=0&vid=20000014175956&...
-```
-
-The application extracts:
-
-```text
-20000014175956
-```
-
-A currently known metadata endpoint is:
-
-```text
-https://api-h5.tangdou.com/sample/share/main?vid={VID}
-```
-
-Known media fields may include:
-
-```text
-data.video_url
-data.play_url
-```
-
-The resolved media URL may look similar to:
-
-```text
-https://aqiniushare.tangdou.com/..._H540P.mp4?sign=...&t=...
-```
-
-These URLs are signed and may expire.
-
-The application should therefore resolve a fresh URL before starting each new download.
-
-Known working requests may require headers such as:
-
-```text
-User-Agent: Mozilla/5.0 ...
-Referer: https://www.tangdoucdn.com/
-```
-
-Tangdou can change its API at any time. Service-specific logic should remain isolated so it can be updated without changing the GUI or media-processing layers.
-
----
-
-## Media workflow
-
-Recommended processing path:
-
-```text
-Tangdou share URL
-        |
-        v
-Extract VID
-        |
-        v
-Resolve media URL
-        |
-        v
-Download original MP4
-        |
-        v
-Local temporary file
-        |
-        +--------------------------+
-        |                          |
-        v                          v
-      MP4                     ffmpeg processing
-                                   |
-                              +----+----+
-                              |         |
-                              v         v
-                         Trimmed MP4    MP3
-```
-
-Downloading the full media file first makes error handling easier and prevents an expiring signed URL from interrupting later processing.
-
----
-
-## MP4 trimming
-
-For low CPU use, the default trim mode can use stream copying:
-
-```bash
-ffmpeg \
-  -ss 00:01:20 \
-  -to 00:04:30 \
-  -i input.mp4 \
-  -c copy \
-  output.mp4
-```
-
-Advantages:
-
-- very fast;
-- low CPU usage;
-- no quality loss from re-encoding.
-
-Limitation:
-
-- cuts may align to keyframes and may not be frame-exact.
-
-A future optional "precise trim" mode could re-encode the video.
-
----
-
-## MP3 conversion
-
-Example:
-
-```bash
-ffmpeg \
-  -ss 00:01:20 \
-  -to 00:04:30 \
-  -i input.mp4 \
-  -vn \
-  -c:a libmp3lame \
-  -q:a 2 \
-  output.mp3
-```
-
-Without trimming:
-
-```bash
-ffmpeg \
-  -i input.mp4 \
-  -vn \
-  -c:a libmp3lame \
-  -q:a 2 \
-  output.mp3
-```
-
----
-
-## Duration detection
-
-Use `ffprobe` when media duration is needed:
-
-```bash
-ffprobe \
-  -v error \
-  -show_entries format=duration \
-  -of default=noprint_wrappers=1:nokey=1 \
-  input.mp4
-```
-
-The application can use this to validate that:
-
-```text
-start < end <= video duration
-```
-
----
-
-## Requirements
-
-### Rust
-
-Install Rust using rustup:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-Then restart the shell or run:
-
-```bash
-source "$HOME/.cargo/env"
-```
-
-Check:
-
-```bash
-rustc --version
-cargo --version
-```
-
-### Ubuntu build dependencies
-
-```bash
-sudo apt update
-sudo apt install -y \
-  build-essential \
-  pkg-config \
-  libssl-dev \
-  ffmpeg
-```
-
-Verify FFmpeg:
-
-```bash
-ffmpeg -version
-ffprobe -version
-```
-
----
-
-## Creating the project
-
-```bash
-cargo new tangdou-downloader
-cd tangdou-downloader
-```
-
-Suggested layout:
-
-```text
-tangdou-downloader/
-├── Cargo.toml
-├── AGENTS.md
-├── README.md
-└── src/
-    ├── main.rs
-    ├── gui.rs
-    ├── tangdou.rs
-    ├── downloader.rs
-    ├── ffmpeg.rs
-    ├── model.rs
-    └── error.rs
-```
-
----
-
-## Suggested Cargo dependencies
-
-Use current compatible crate versions rather than copying stale pinned versions blindly.
-
-Conceptually:
-
-```toml
-[dependencies]
-eframe = "..."
-reqwest = { version = "...", features = ["blocking", "json", "rustls-tls"] }
-serde = { version = "...", features = ["derive"] }
-serde_json = "..."
-url = "..."
-```
-
-Optional development dependencies may be added for HTTP mocking or fixture tests.
-
----
-
-## Development
-
-Format:
-
-```bash
-cargo fmt
-```
-
-Lint:
-
-```bash
-cargo clippy --all-targets --all-features
-```
-
-Test:
-
-```bash
-cargo test
-```
-
-Run:
-
-```bash
-cargo run
-```
-
-Release build:
-
-```bash
-cargo build --release
-```
-
-The release binary will normally be:
-
-```text
-target/release/tangdou-downloader
-```
-
----
-
-## MVP scope
-
-The initial release should include:
-
-- Tangdou URL input;
-- VID extraction;
-- media URL resolution;
-- MP4 download;
-- output-directory selection;
-- optional start time;
-- optional end time;
-- MP4 output;
-- MP3 output;
-- download status/progress;
-- processing status;
-- missing FFmpeg detection;
-- useful error messages;
-- safe temporary-file cleanup.
-
-The initial release should not include:
-
-- embedded video playback;
-- waveform rendering;
-- a graphical editing timeline;
-- login/account support;
-- download history database;
-- multi-window UI;
-- DRM bypass;
-- browser automation.
-
----
-
-## Proposed development order
-
-### 1. CLI proof of concept
-
-Implement a reusable Rust core that can:
-
-```text
-share URL
-  -> VID
-  -> API response
-  -> signed video URL
-  -> MP4 download
-```
-
-Then add:
-
-```text
-ffprobe
-ffmpeg trim
-ffmpeg MP3 export
-```
-
-Do not start with GUI-specific networking logic.
-
-### 2. GUI shell
-
-Implement:
-
-- URL text field;
-- Parse button;
-- trim inputs;
-- output format;
-- save directory;
-- Download button;
-- status label.
-
-### 3. Worker thread
-
-Move network and FFmpeg jobs off the GUI thread.
-
-Send progress/results back through channels.
-
-### 4. Reliability
-
-Add:
-
-- structured error types;
-- output collision handling;
-- temporary-file cleanup;
-- API fixture tests;
-- time parser tests;
-- URL parser tests.
-
-### 5. Packaging
-
-After the core application is stable, consider:
-
-- standalone release binaries;
-- `.deb`;
-- AppImage.
-
----
-
-## Example current manual flow
-
-A Tangdou video ID can currently be resolved from Ubuntu with a request similar to:
-
-```bash
-VID=20000014175956
-
-URL="$(
-  curl -fsSL --compressed \
-    -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36' \
-    -H 'Accept: application/json, text/plain, */*' \
-    -H 'Referer: https://www.tangdoucdn.com/' \
-    "https://api-h5.tangdou.com/sample/share/main?vid=${VID}" |
-  jq -r '.data.video_url // .data.play_url // empty'
-)"
-
-echo "$URL"
-```
-
-The Rust application is intended to automate this workflow.
-
----
-
-## Safety
-
-Do not pass raw user input into `sh -c`.
-
-Invoke FFmpeg using explicit process arguments.
-
-Treat Tangdou titles/metadata as untrusted strings and sanitize output filenames.
-
-Do not silently overwrite an existing user file.
-
-Do not implement DRM circumvention or credential extraction.
-
----
-
-## Contributing
-
-Before considering a change complete:
-
-```bash
-cargo fmt
-cargo clippy --all-targets --all-features
-cargo test
-```
-
-Prefer small changes.
-
-Keep Tangdou-specific code isolated from the GUI.
-
-Avoid adding dependencies when the Rust standard library already provides a simple solution.
-
-See [`AGENTS.md`](./AGENTS.md) for detailed implementation instructions intended for coding agents.
+[构建工作流](.github/workflows/build.yml) 在 main 推送或手动触发时，
+分别在 Ubuntu 与 Windows runner 上检查、测试、构建和打包。
+产物可在 [Actions](https://github.com/madokaiskami/tangdou-downloader/actions)
+中下载；正式版本额外上传到 Releases。
+Linux 包保留可执行权限，Windows 包包含两个 .exe，各自附 SHA-256 校验文件。
+
+## 模块与维护
+
+- `gui.rs`：界面、语言、时间输入、任务状态。
+- `tangdou.rs`：链接解析、VID、糖豆 API 及媒体 URL。
+- `workflow.rs`：后台下载、检测、转换流程和结构化事件。
+- `downloader.rs`：带 Referer 的 HTTP 下载与字节进度。
+- `ffmpeg.rs`：依赖检查、时长检测、MP4 裁剪与 MP3 导出。
+- `model.rs` / `error.rs`：数据、校验、跨平台文件名与错误。
+
+解析测试使用保存的 JSON fixture，不依赖实时 API。
+糖豆接口发生变化时优先更新 `tangdou.rs`。
+系统缺少工具、服务接口异常、网络失败或无写入权限时，界面会显示错误。
+目前没有取消任务、精确重编码裁剪或自动更新功能。
+
+## English
+
+A lightweight native Rust desktop downloader for Tangdou share URLs, with MP4 downloads,
+optional stream-copy trimming and MP3 export. Switch between Simplified Chinese and English
+at the top of the window. Downloads and media processing run on a background thread.
+
+Download the Linux x86_64 tarball or Windows x86_64 ZIP from Releases.
+Install FFmpeg and ffprobe separately and make them available on PATH.
+Linux packages are built on Ubuntu 22.04; Windows packages are built with MSVC.
+Windows desktop end-to-end testing has not yet been performed.
+Each trim boundary has three fields (hours, minutes, seconds); an entirely blank boundary
+means beginning/end of file. Minutes and seconds must be 0–59.
+
+## 许可证与使用范围
+
+[MIT License](LICENSE)。仅用于你有权下载和处理的媒体，不提供 DRM 绕过。

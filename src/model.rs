@@ -129,7 +129,7 @@ pub fn sanitize_title(title: &str) -> Option<String> {
 
     for character in title.trim().chars() {
         let replacement = match character {
-            '/' | '\\' | '\0' => '_',
+            '/' | '\\' | '\0' | '<' | '>' | ':' | '"' | '|' | '?' | '*' => '_',
             character if character.is_control() => '_',
             character => character,
         };
@@ -151,7 +151,19 @@ pub fn sanitize_title(title: &str) -> Option<String> {
         sanitized.push(replacement);
     }
 
-    let sanitized = sanitized.trim_matches([' ', '.']).to_owned();
+    let mut sanitized = sanitized.trim_matches([' ', '.']).to_owned();
+    let stem = sanitized
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && matches!(stem.as_bytes()[3], b'1'..=b'9'))
+    {
+        sanitized.insert(0, '_');
+    }
     (!sanitized.is_empty()).then_some(sanitized)
 }
 
@@ -188,6 +200,14 @@ mod tests {
         assert!(sanitize_title(" \t\n ").is_none());
         let title = "糖".repeat(200);
         assert_eq!(sanitize_title(&title).map(|value| value.len()), Some(120));
+    }
+
+    #[test]
+    fn sanitizes_windows_filenames() {
+        assert_eq!(sanitize_title("a:b?c*"), Some("a_b_c_".to_owned()));
+        assert_eq!(sanitize_title("CON"), Some("_CON".to_owned()));
+        assert_eq!(sanitize_title("lpt1.mp4"), Some("_lpt1.mp4".to_owned()));
+        assert_eq!(sanitize_title("COM10"), Some("COM10".to_owned()));
     }
 
     #[test]

@@ -1,10 +1,12 @@
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+
 mod gui;
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 590.0])
-            .with_min_inner_size([480.0, 520.0]),
+            .with_inner_size([680.0, 780.0])
+            .with_min_inner_size([540.0, 580.0]),
         ..Default::default()
     };
 
