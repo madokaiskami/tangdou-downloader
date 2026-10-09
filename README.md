@@ -101,7 +101,7 @@ Windows 安装 Rust stable MSVC 工具链和 Visual Studio Build Tools 的
 
 ```powershell
 cargo build --locked --release --bins
-.	arget\release\tangdou-downloader.exe
+.\target\release\tangdou-downloader.exe
 ```
 
 检查命令：
